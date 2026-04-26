@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>申请进度管理表</title>
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0f1117;--surface:#1a1d2e;--surface2:#222538;--blue:#4f8ef7;--green:#3ecf8e;--orange:#f7a94f;--red:#f74f4f;--purple:#b47af7;--dim:#6a7090;--text:#e8eaf0;--muted:#8890a8;--border:#2e3350}
+body{background:var(--bg);color:var(--text);font-family:"Noto Sans SC","Noto Sans JP","Hiragino Sans",sans-serif;min-height:100vh;padding:24px 20px}
+h1{text-align:center;font-size:1.4rem;font-weight:300;letter-spacing:.2em;color:var(--muted);margin-bottom:4px}
+.sub{text-align:center;font-size:.74rem;color:#3a4060;margin-bottom:20px}
+.sync-indicator{text-align:center;font-size:.7rem;margin-bottom:12px;height:16px}
+.sync-indicator.saving{color:var(--orange)}
+.sync-indicator.saved{color:var(--green)}
+.stats{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.stat{flex:1;min-width:70px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;text-align:center}
+.stat .n{font-size:1.5rem;font-weight:700;line-height:1;margin-bottom:2px}
+.stat .l{font-size:.64rem;color:var(--muted)}
+.controls{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
+.search{flex:1;min-width:160px;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:7px 12px;border-radius:6px;font-size:.82rem;font-family:inherit;outline:none}
+.search:focus{border-color:var(--blue)}
+.search::placeholder{color:var(--muted)}
+.fbtn{background:var(--surface);border:1px solid var(--border);color:var(--muted);padding:7px 11px;border-radius:6px;font-size:.74rem;cursor:pointer;white-space:nowrap;font-family:inherit}
+.fbtn:hover,.fbtn.active{border-color:var(--blue);color:var(--blue);background:rgba(79,142,247,.08)}
+.add-btn{background:rgba(79,142,247,.12);border:1px solid rgba(79,142,247,.35);color:var(--blue);padding:7px 14px;border-radius:6px;font-size:.78rem;cursor:pointer;font-family:inherit;font-weight:600}
+.count{font-size:.72rem;color:var(--muted);margin-left:auto;white-space:nowrap;align-self:center}
+.tbl-wrap{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:.8rem}
+thead tr{background:var(--surface2);border-bottom:1px solid var(--border)}
+th{padding:10px 12px;text-align:left;font-weight:500;font-size:.7rem;color:var(--muted);white-space:nowrap}
+tbody tr{border-bottom:1px solid rgba(46,51,80,.45);transition:background .12s}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:rgba(79,142,247,.04)}
+td{padding:8px 12px;vertical-align:middle;white-space:nowrap}
+.rn{color:#2e3450;font-size:.66rem;font-family:monospace}
+.badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:.68rem;font-weight:500}
+.s-check{background:rgba(247,169,79,.12);color:var(--orange);border:1px solid rgba(247,169,79,.35);cursor:pointer}
+.s-submit{background:rgba(62,207,142,.12);color:var(--green);border:1px solid rgba(62,207,142,.35);cursor:pointer}
+.s-done{background:rgba(100,110,140,.12);color:var(--dim);border:1px solid rgba(100,110,140,.3);cursor:pointer}
+.s-check:hover,.s-submit:hover,.s-done:hover{filter:brightness(1.3)}
+.m-vpn{background:rgba(79,142,247,.11);color:var(--blue);border:1px solid rgba(79,142,247,.28);cursor:pointer}
+.m-remote{background:rgba(167,79,247,.11);color:var(--purple);border:1px solid rgba(167,79,247,.28);cursor:pointer}
+.m-none{background:rgba(100,110,140,.08);color:var(--dim);border:1px solid rgba(100,110,140,.2);cursor:pointer}
+.m-vpn:hover,.m-remote:hover,.m-none:hover{filter:brightness(1.3)}
+.b-second{background:rgba(247,79,79,.08);color:var(--red);border:1px solid rgba(247,79,79,.22);padding:1px 6px;font-size:.62rem;margin-right:3px}
+.person-tag{background:rgba(255,255,255,.04);border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:1px 7px;font-size:.7rem}
+.del-btn{background:none;border:none;color:#2e3450;cursor:pointer;font-size:.85rem;padding:2px 4px;border-radius:3px}
+.del-btn:hover{color:var(--red)}
+.waku-normal{background:rgba(79,142,247,.1);color:var(--blue);border:1px solid rgba(79,142,247,.28);padding:2px 7px;border-radius:12px;font-size:.64rem;cursor:pointer;font-weight:500}
+.waku-invoice{background:rgba(247,169,79,.1);color:var(--orange);border:1px solid rgba(247,169,79,.3);padding:2px 7px;border-radius:12px;font-size:.64rem;cursor:pointer;font-weight:500}
+.waku-none{background:rgba(100,110,140,.08);color:var(--dim);border:1px solid rgba(100,110,140,.2);padding:2px 7px;border-radius:12px;font-size:.64rem;cursor:pointer}
+.check-badge{display:inline-flex;align-items:center;gap:4px;background:rgba(79,142,247,.1);border:1px solid rgba(79,142,247,.25);border-radius:20px;padding:2px 9px;font-size:.7rem;cursor:pointer}
+.check-badge:hover{background:rgba(79,142,247,.2)}
+.check-badge .cb-num{font-weight:700;color:var(--blue)}
+.check-badge .cb-den{color:var(--muted)}
+.check-badge.full{background:rgba(62,207,142,.1);border-color:rgba(62,207,142,.35)}
+.check-badge.full .cb-num{color:var(--green)}
+.note-td{min-width:130px;max-width:220px;padding:5px 12px;cursor:text}
+.note-view{display:flex;align-items:center;gap:4px;min-height:24px;padding:2px 5px;border-radius:4px;border:1px solid transparent}
+.note-td:hover .note-view{border-color:var(--border);background:rgba(255,255,255,.03)}
+.note-td:hover .ehint{opacity:1}
+.ehint{opacity:0;font-size:.6rem;color:var(--dim);margin-left:auto}
+.note-inp{display:none;width:100%;background:#0a0c14;border:1px solid var(--blue);color:var(--text);padding:3px 7px;border-radius:4px;font-size:.76rem;font-family:inherit;outline:none}
+.note-inp.active{display:block}
+.loading{text-align:center;padding:60px;color:var(--muted)}
+.popup{position:fixed;background:#1e2235;border:1px solid var(--border);border-radius:8px;padding:5px 0;z-index:1000;box-shadow:0 8px 32px rgba(0,0,0,.55);min-width:120px;display:none}
+.popup.show{display:block}
+.pop-item{padding:8px 16px;font-size:.78rem;cursor:pointer;font-weight:500}
+.pop-item:hover{background:rgba(79,142,247,.1)}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:2000;display:none;align-items:center;justify-content:center}
+.overlay.show{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px 26px;width:480px;max-width:95vw;max-height:88vh;overflow-y:auto}
+.modal-title{font-size:.95rem;font-weight:600;margin-bottom:16px}
+.tabs{display:flex;background:#0f1117;border-radius:8px;padding:3px;margin-bottom:16px}
+.tab{flex:1;padding:7px;border-radius:6px;border:none;cursor:pointer;font-family:inherit;font-size:.8rem;font-weight:500;background:transparent;color:var(--muted)}
+.tab.active{background:var(--surface);color:var(--blue)}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:.7rem;color:var(--muted);margin-bottom:4px}
+.field input,.field select,.field textarea{width:100%;background:#0f1117;border:1px solid var(--border);color:var(--text);padding:8px 11px;border-radius:6px;font-size:.82rem;font-family:inherit;outline:none;resize:vertical}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--blue)}
+.field textarea{line-height:1.6;font-family:monospace}
+.row2{display:flex;gap:10px}.row2 .field{flex:1}
+.btn-row{display:flex;gap:8px;margin-top:6px}
+.btn-cancel{flex:1;background:none;border:1px solid var(--border);color:var(--muted);padding:9px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:.82rem}
+.btn-ok{flex:2;background:rgba(79,142,247,.14);border:1px solid rgba(79,142,247,.4);color:var(--blue);padding:9px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:.82rem;font-weight:600}
+.btn-ok:disabled{opacity:.35;cursor:default}
+.btn-green{background:rgba(62,207,142,.13);border:1px solid rgba(62,207,142,.38);color:var(--green)}
+.hint{font-size:.7rem;color:var(--muted);margin-bottom:8px;line-height:1.6}
+.hint code{color:#4a5070;font-family:monospace}
+.preview-box{background:#0f1117;border-radius:8px;padding:8px 11px;max-height:160px;overflow-y:auto;margin-top:5px}
+.preview-row{display:flex;gap:8px;align-items:center;padding:3px 0;border-bottom:1px solid #1a1d2e;font-size:.74rem}
+.preview-row:last-child{border-bottom:none}
+.preview-label{font-size:.74rem;font-weight:600;margin-bottom:6px}
+.check-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:3000;display:none;align-items:center;justify-content:center}
+.check-overlay.show{display:flex}
+.check-modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px 24px;width:420px;max-width:95vw;max-height:88vh;overflow-y:auto}
+.check-modal-title{font-size:.9rem;font-weight:600;margin-bottom:3px}
+.check-modal-sub{font-size:.7rem;color:var(--muted);margin-bottom:14px}
+.waku-toggle{display:flex;gap:7px;margin-bottom:14px}
+.waku-btn{flex:1;padding:7px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:inherit;font-size:.78rem;cursor:pointer;font-weight:500}
+.waku-btn.active-normal{background:rgba(79,142,247,.15);border-color:var(--blue);color:var(--blue)}
+.waku-btn.active-invoice{background:rgba(247,169,79,.15);border-color:var(--orange);color:var(--orange)}
+.check-items{display:flex;flex-direction:column;gap:7px}
+.check-item{display:flex;align-items:center;gap:11px;padding:9px 13px;background:rgba(255,255,255,.025);border:1px solid var(--border);border-radius:8px;cursor:pointer;user-select:none;transition:all .12s}
+.check-item:hover{background:rgba(79,142,247,.06);border-color:rgba(79,142,247,.3)}
+.check-item.done{background:rgba(62,207,142,.06);border-color:rgba(62,207,142,.25)}
+.ci-box{width:17px;height:17px;border-radius:4px;border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .12s}
+.check-item.done .ci-box{background:var(--green);border-color:var(--green)}
+.ci-label{font-size:.8rem;flex:1;transition:color .12s}
+.check-item.done .ci-label{color:var(--muted);text-decoration:line-through}
+.check-modal-close{width:100%;margin-top:14px;background:none;border:1px solid var(--border);color:var(--muted);padding:8px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:.82rem}
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(16px);background:#222538;border:1px solid var(--border);color:var(--text);padding:9px 20px;border-radius:8px;font-size:.8rem;opacity:0;transition:all .25s;pointer-events:none;z-index:9999;white-space:nowrap}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<h1>申请进度管理表</h1>
+<div class="sub">AI TEAM · 业务追踪 · Firebase リアルタイム同期</div>
+<div class="sync-indicator" id="sync-indicator"></div>
+
+<div class="stats" id="stats-area">
+  <div class="stat"><div class="n" id="sn-submit" style="color:var(--green)">0</div><div class="l">可提交</div></div>
+  <div class="stat"><div class="n" id="sn-check"  style="color:var(--orange)">0</div><div class="l">待検査</div></div>
+  <div class="stat"><div class="n" id="sn-done"   style="color:var(--dim)">0</div><div class="l">完了</div></div>
+  <div class="stat"><div class="n" id="sn-vpn"    style="color:var(--blue)">0</div><div class="l">VPN</div></div>
+  <div class="stat"><div class="n" id="sn-remote" style="color:var(--purple)">0</div><div class="l">远程</div></div>
+  <div class="stat"><div class="n" id="sn-second" style="color:var(--red)">0</div><div class="l">二次</div></div>
+  <div class="stat"><div class="n" id="sn-total"  style="color:var(--text)">0</div><div class="l">合計</div></div>
+</div>
+<div class="controls">
+  <input class="search" id="search" type="text" placeholder="会社名 / 担当者で検索…">
+  <button class="fbtn active" data-f="all">全部</button>
+  <button class="fbtn" data-f="可提交">可提交</button>
+  <button class="fbtn" data-f="待检查">待検査</button>
+  <button class="fbtn" data-f="完了">完了</button>
+  <button class="fbtn" data-f="vpn">VPN</button>
+  <button class="fbtn" data-f="远程">远程</button>
+  <button class="fbtn" data-f="二次">二次申请</button>
+  <span class="count" id="count"></span>
+  <button class="add-btn" id="open-add">＋ 新規追加</button>
+</div>
+
+<div id="loading-msg" class="loading">Firebase に接続中…</div>
+<div class="tbl-wrap" id="tbl-wrap" style="display:none">
+  <table>
+    <thead><tr><th>#</th><th>担当者</th><th>会社名</th><th>状態</th><th>方式</th><th>枠</th><th>検査</th><th>備考</th><th></th></tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+
+<div class="popup" id="popup">
+  <div class="pop-item" data-s="待检查" style="color:var(--orange)">待検査</div>
+  <div class="pop-item" data-s="可提交" style="color:var(--green)">可提交</div>
+  <div class="pop-item" data-s="完了"   style="color:var(--dim)">完了</div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-title">新規案件を追加</div>
+    <div class="tabs">
+      <button class="tab active" data-tab="bulk">一括貼り付け</button>
+      <button class="tab" data-tab="manual">手動入力</button>
+    </div>
+    <div id="tab-bulk">
+      <div id="bulk-input-area">
+        <div class="hint">形式：<code>小雨 株式会社○○ vpn申请</code> / <code>NAGI 橋本貿易 二次申请 远程</code></div>
+        <div class="field"><textarea id="paste-area" rows="8" placeholder="小雨 携利商事合同会社 vpn申请&#10;NAGI 橋本貿易株式会社 二次申请 远程"></textarea></div>
+        <div class="btn-row">
+          <button class="btn-cancel" id="bulk-cancel">キャンセル</button>
+          <button class="btn-ok" id="bulk-parse">解析する →</button>
+        </div>
+      </div>
+      <div id="bulk-preview-area" style="display:none">
+        <div id="preview-added"></div><div id="preview-dupes"></div>
+        <div class="btn-row">
+          <button class="btn-cancel" id="bulk-back">← 戻る</button>
+          <button class="btn-ok btn-green" id="bulk-confirm">追加する</button>
+        </div>
+      </div>
+    </div>
+    <div id="tab-manual" style="display:none">
+      <div class="field"><label>担当者 *</label><input type="text" id="m-person" placeholder="例: 小雨"></div>
+      <div class="field"><label>会社名 *</label><input type="text" id="m-company" placeholder="例: 株式会社○○"></div>
+      <div class="row2">
+        <div class="field"><label>申請方法</label>
+          <select id="m-method"><option value="VPN">VPN</option><option value="远程">远程</option><option value="">なし</option></select>
+        </div>
+        <div class="field"><label>初期状態</label>
+          <select id="m-status"><option value="待检查">待検査</option><option value="可提交">可提交</option><option value="完了">完了</option></select>
+        </div>
+      </div>
+      <div class="field"><label>備考</label><input type="text" id="m-note" placeholder="例: 二次申请"></div>
+      <div class="btn-row">
+        <button class="btn-cancel" id="manual-cancel">キャンセル</button>
+        <button class="btn-ok" id="manual-add">追加する</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="check-overlay" id="check-overlay">
+  <div class="check-modal">
+    <div class="check-modal-title" id="cm-title"></div>
+    <div class="check-modal-sub" id="cm-sub"></div>
+    <div class="waku-toggle">
+      <button class="waku-btn" id="waku-normal-btn" onclick="setWaku('通常')">通常枠</button>
+      <button class="waku-btn" id="waku-invoice-btn" onclick="setWaku('インボイス')">インボイス枠</button>
+    </div>
+    <div class="check-items" id="check-items-list"></div>
+    <button class="check-modal-close" onclick="closeCheckModal()">閉じる</button>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+// ── Firebase 初期化 ───────────────────────────────────────────────
+var firebaseConfig = {
+  "apiKey": "AIzaSyC0I0OTV1UbmqGLLs2MuRPdSnskT1Qn4ss",
+  "authDomain": "vast-art-367906.firebaseapp.com",
+  "databaseURL": "https://vast-art-367906-default-rtdb.firebaseio.com",
+  "projectId": "vast-art-367906",
+  "storageBucket": "vast-art-367906.firebasestorage.app",
+  "messagingSenderId": "1236560319",
+  "appId": "1:1236560319:web:8ddf85cf183d845fca190a",
+  "measurementId": "G-JXYEV12MRC"
+};
+firebase.initializeApp(firebaseConfig);
+var db = firebase.database();
+var overridesRef  = db.ref("overrides");
+var checksRef     = db.ref("checks");
+var extrasRef     = db.ref("extras");
+
+// ── データ ───────────────────────────────────────────────────────
+var RAW = [{"person": "233", "company": "信川医療観光株式会社", "method": "VPN", "note": "改好后可提交", "defaultStatus": "可提交"}, {"person": "小雨", "company": "東輝通商株式会社", "method": "VPN", "note": "", "defaultStatus": "可提交"}, {"person": "kurumi", "company": "Ｐｅｇａｓｕｓ観光株式会社", "method": "", "note": "", "defaultStatus": "可提交"}, {"person": "233", "company": "敬愛株式会社", "method": "VPN", "note": "", "defaultStatus": "可提交"}, {"person": "Nagi", "company": "GT合同会社", "method": "VPN", "note": "", "defaultStatus": "可提交"}, {"person": "小雨", "company": "株式会社キングワールドインターナショナル商事", "method": "", "note": "", "defaultStatus": "待检查"}, {"person": "kurumi", "company": "ＹＭ株式会社", "method": "", "note": "", "defaultStatus": "待检查"}, {"person": "233", "company": "ロンファーマ株式会社", "method": "", "note": "", "defaultStatus": "待检查"}, {"person": "Nagi", "company": "リウヤン食株式会社", "method": "", "note": "", "defaultStatus": "待检查"}, {"person": "kurumi", "company": "ＴＨＸ　ＡＲＴ合同会社", "method": "", "note": "", "defaultStatus": "待检查"}, {"person": "233", "company": "合同会社琴商事", "method": "", "note": "", "defaultStatus": "待检查"}, {"person": "小雨", "company": "株式会社晴", "method": "", "note": "", "defaultStatus": "待检查"}, {"person": "小雨", "company": "株式会社ビズル", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "kurumi", "company": "東興通商株式会社", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "小江", "company": "合同会社福", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "小江", "company": "株式会社錦松", "method": "", "note": "", "defaultStatus": "待检查"}, {"person": "NAGI", "company": "エスプラス株式会社", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "小雨", "company": "工藝新潮株式会社", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "233", "company": "顺和株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "kurumi", "company": "ＭＹＣ株式会社", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "小江", "company": "至邦国際株式会社", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "小雨", "company": "Speed Japan株式会社", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "kurumi", "company": "日昇株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "NAGI", "company": "株式会社フタヤマ", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "233", "company": "東城株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "小江", "company": "KUNGFU株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "小雨", "company": "合同会社リノア", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "NAGI", "company": "株式会社名古屋国際旅行社", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "kurumi", "company": "株式会社ＹＯＹＯ", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "小雨", "company": "有限会社萬寳", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "小雨", "company": "株式会社OneStep", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "NAGI", "company": "卓偉達株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "kurumi", "company": "合同会社裕順", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "小江", "company": "株式会社COD", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "小雨", "company": "株式会社Hannah’s", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "kurumi", "company": "株式会社鼎騰", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "NAGI", "company": "有限会社栅栅", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "kurumi", "company": "恒信株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "小江", "company": "New Asia Investment株式会社", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "小龙", "company": "富和通商株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "NAGI", "company": "株式会社凱旋商事", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "233", "company": "株式会社アヴァンセ", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "小雨", "company": "隆和株式会社", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "233", "company": "株式会社有間学堂", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "小江", "company": "新秀合同会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "小雨", "company": "有限会社特美", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "kurumi", "company": "大和産業株式会社", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "NAGI", "company": "錦銘合同会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "小江", "company": "株式会社MARU・K", "method": "远程", "note": "AI", "defaultStatus": "待检查"}, {"person": "233", "company": "株式会社エスティ商事", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "kurumi", "company": "株式会社全一建業", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "小雨", "company": "株式会社エトナ", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "小范", "company": "潤昊株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "NAGI", "company": "株式会社徳戸", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "NAGI", "company": "皓铭株式会社", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "233", "company": "山陽株式会社", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "NAGI", "company": "永旺合同会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "小雨", "company": "国盛合同会社", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "NAGI", "company": "ハフィ株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "kurumi", "company": "株式会社サンライズ", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "小范", "company": "株式会社UNA", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "NAGI", "company": "Ｋ・Ｙ国際合同会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "kurumi", "company": "株式会社エスケー", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "小雨", "company": "YOYO株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "小江", "company": "南北商事株式会社", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "kurumi", "company": "浄月合同会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "小雨", "company": "P&H合同会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "小范", "company": "LOCICO株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "233", "company": "孟金果株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "kurumi", "company": "王允峰个人事业主", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "NAGI", "company": "MGL億金技術合同会社", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "小江", "company": "中华香菜馆", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "kurumi", "company": "中茂国際株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "小江", "company": "智聯株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "小雨", "company": "株式会社ツヨシ", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "小范", "company": "彪商事株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "NAGI", "company": "mad me株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "小范", "company": "株式会社IBCC", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "小雨", "company": "味源（張鵬程）", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "kurumi", "company": "DXコーポレーション株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "233", "company": "天利国際株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "小雨", "company": "森源贸易株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "kurumi", "company": "上條安那 个人", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "NAGI", "company": "株式会社MDBGT", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "小雨", "company": "株式会社和気", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "小江", "company": "餃王 个人", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "NAGI", "company": "福泉株式会社", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "小江", "company": "廣進株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "小雨", "company": "四川料理華美株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "小江", "company": "徳美堂株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "NAGI", "company": "マラシル株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "小江", "company": "株式会社天海偉昇", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "kurumi", "company": "株式会社Ｉ＆Ｐ", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "NAGI", "company": "朝宇C.C.E", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "小雨", "company": "雅澄国際株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "小江", "company": "海天合同会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "小范", "company": "アラシン株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "kurumi", "company": "齐景利 个人", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "小江", "company": "プラスディー株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "小范", "company": "合同会社圓縁", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "小江", "company": "季勇 个人事業主", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "NAGI", "company": "環宇貿易株式会社", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "小江", "company": "藤美株式会社", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "NAGI", "company": "rabby plant合同会社", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "小范", "company": "紫薇星 个人", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "阙旭", "company": "株式会社Asuya", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "小江", "company": "嘉怡軒", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "233", "company": "甄鋭　個人事業主", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "kurumi", "company": "株式会社Montee", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "小范", "company": "木子合同会社", "method": "", "note": "", "defaultStatus": "待检查"}, {"person": "小旋风", "company": "エルアンドエス株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "小江", "company": "東信産業株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "NAGI", "company": "足立満口香 个人", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "阙旭", "company": "合創株式会社", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "小雨", "company": "株式会社Time Keys", "method": "VPN", "note": "二次申请", "defaultStatus": "待检查"}, {"person": "kurumi", "company": "株式会社東昇", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "小范", "company": "嘉溢株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "小江", "company": "LJ株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "kurumi", "company": "藤原商事株式会社（大阪）", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "NAGI", "company": "株式会社昇龍", "method": "VPN", "note": "二次申请", "defaultStatus": "待检查"}, {"person": "233", "company": "日鑫株式会社", "method": "远程", "note": "二次申请", "defaultStatus": "待检查"}, {"person": "阙旭", "company": "合同会社エン", "method": "VPN", "note": "二次申请", "defaultStatus": "待检查"}, {"person": "小雨", "company": "株式会社福富", "method": "远程", "note": "二次申请", "defaultStatus": "待检查"}, {"person": "NAGI", "company": "雲尚株式会社", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "小雨", "company": "携利商事合同会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "NAGI", "company": "橋本貿易株式会社", "method": "远程", "note": "二次申请", "defaultStatus": "待检查"}, {"person": "小雨", "company": "和勝株式会社", "method": "VPN", "note": "二次申请", "defaultStatus": "待检查"}, {"person": "kurumi", "company": "南億科技株式会社", "method": "远程", "note": "二次申请", "defaultStatus": "待检查"}, {"person": "小江", "company": "麗新株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "kurumi", "company": "株式会社白さん", "method": "远程", "note": "二次申请", "defaultStatus": "待检查"}, {"person": "小雨", "company": "食之居 个人", "method": "VPN", "note": "二次申请", "defaultStatus": "待检查"}, {"person": "小范", "company": "合同会社ミクシィ", "method": "VPN", "note": "二次申请", "defaultStatus": "待检查"}, {"person": "233", "company": "スマイルジャパン株式会社", "method": "远程", "note": "二次申请", "defaultStatus": "待检查"}, {"person": "小旋风", "company": "有限会社シャオリン・トレーディン", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "NAGI", "company": "AC-WORLD合同会社", "method": "远程", "note": "二次申请", "defaultStatus": "待检查"}, {"person": "阙旭", "company": "ドラッカーシコウ株式会社", "method": "VPN", "note": "二次申请", "defaultStatus": "待检查"}, {"person": "kurumi", "company": "前田造園合同会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "小雨", "company": "東特株式会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "小雨", "company": "春明合同会社", "method": "VPN", "note": "二次申请", "defaultStatus": "待检查"}, {"person": "小江", "company": "サクラトラベル株式会社", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "小江", "company": "海川株式会社", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "小范", "company": "Ｍ＆Ｊ株式会社", "method": "VPN", "note": "二次申请", "defaultStatus": "待检查"}, {"person": "小雨", "company": "中華居酒屋兎月 个人", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "阙旭", "company": "GW MAP合同会社", "method": "VPN", "note": "", "defaultStatus": "待检查"}, {"person": "kurumi", "company": "株式会社IPPIN’s", "method": "VPN", "note": "二次申请", "defaultStatus": "待检查"}, {"person": "小雨", "company": "青蓝株式会社", "method": "远程", "note": "", "defaultStatus": "待检查"}, {"person": "kurumi", "company": "吉通商事株式会社", "method": "远程", "note": "二次申请", "defaultStatus": "待检查"}, {"person": "NAGI", "company": "株式会社Iiku", "method": "VPN", "note": "二次申请", "defaultStatus": "待检查"}, {"person": "阙旭", "company": "合同会社カラフラ", "method": "VPN", "note": "二次申请", "defaultStatus": "待检查"}, {"person": "田", "company": "株式会社ソウエイ", "method": "VPN", "note": "二次申请", "defaultStatus": "待检查"}, {"person": "小范", "company": "合同会社トーラス", "method": "远程", "note": "二次申请", "defaultStatus": "待检查"}, {"person": "kurumi", "company": "喜友通商株式会社", "method": "远程", "note": "二次申请", "defaultStatus": "待检查"}, {"person": "小雨", "company": "ＨＡＷＳＴＯＮＥ株式会社", "method": "远程", "note": "二次申请", "defaultStatus": "待检查"}];
+var CHECK_ITEMS = ["概要", "人件費", "給料総額", "IT導入ツール", "労働生産性", "加点項目", "省力化", "戦略マップ", "成長加速"];
+var overrides = {}, checksData = {}, extras = [];
+var curFilter = "all", curSearch = "";
+var popupIdx = null, activeNoteIdx = null, checkTarget = null, pendingParsed = null;
+var loaded = {ov:false, ck:false, ex:false};
+
+// ── 同期インジケーター ────────────────────────────────────────────
+var syncTimer;
+function showSync(msg, cls) {
+  var el = document.getElementById("sync-indicator");
+  el.textContent = msg; el.className = "sync-indicator " + cls;
+  clearTimeout(syncTimer);
+  if (cls === "saved") syncTimer = setTimeout(function(){ el.textContent = ""; el.className = "sync-indicator"; }, 2000);
+}
+
+// ── Toast ─────────────────────────────────────────────────────────
+var toastT;
+function toast(msg) {
+  var el = document.getElementById("toast");
+  el.textContent = msg; el.classList.add("show");
+  clearTimeout(toastT);
+  toastT = setTimeout(function(){ el.classList.remove("show"); }, 2200);
+}
+
+// ── ヘルパー ──────────────────────────────────────────────────────
+function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function allRows(){ return RAW.concat(extras); }
+function gSt(r){ return (overrides[r.company] && overrides[r.company].status) ? overrides[r.company].status : r.defaultStatus; }
+function gNt(r){ return (overrides[r.company] && overrides[r.company].note !== undefined && overrides[r.company].note !== "") ? overrides[r.company].note : r.note; }
+function gMt(r){ return (overrides[r.company] && overrides[r.company].method !== undefined && overrides[r.company].method !== "") ? overrides[r.company].method : r.method; }
+function gCk(company){
+  if (!checksData[company]) checksData[company] = {waku:"", items: CHECK_ITEMS.map(function(){return false;})};
+  if (!checksData[company].items || checksData[company].items.length !== CHECK_ITEMS.length) {
+    var old = checksData[company].items || [];
+    checksData[company].items = CHECK_ITEMS.map(function(_,i){ return !!old[i]; });
+  }
+  return checksData[company];
+}
+
+// ── Firebase リアルタイムリスナー ─────────────────────────────────
+function checkAllLoaded() {
+  if (loaded.ov && loaded.ck && loaded.ex) {
+    document.getElementById("loading-msg").style.display = "none";
+    document.getElementById("tbl-wrap").style.display = "";
+    render();
+  }
+}
+
+overridesRef.on("value", function(snap) {
+  overrides = snap.val() || {};
+  loaded.ov = true;
+  checkAllLoaded();
+  render();
+});
+
+checksRef.on("value", function(snap) {
+  checksData = snap.val() || {};
+  loaded.ck = true;
+  checkAllLoaded();
+  render();
+});
+
+extrasRef.on("value", function(snap) {
+  var val = snap.val();
+  extras = val ? Object.values(val).map(function(r){ r._extra=true; return r; }) : [];
+  loaded.ex = true;
+  checkAllLoaded();
+  render();
+});
+
+// ── Firebase 書き込み ─────────────────────────────────────────────
+function fbKey(company) {
+  return company.replace(/[.#$\/\[\]]/g, "_");
+}
+function saveOverride(company, field, value) {
+  showSync("保存中…", "saving");
+  var key = fbKey(company);
+  var update = {};
+  update[field] = value;
+  overridesRef.child(key).update(update).then(function(){
+    showSync("✓ 保存完了", "saved");
+  }).catch(function(e){ showSync("エラー: "+e.message, "saving"); });
+}
+function saveCheck(company) {
+  showSync("保存中…", "saving");
+  var key = fbKey(company);
+  var d = gCk(company);
+  checksRef.child(key).set({waku: d.waku, items: d.items}).then(function(){
+    showSync("✓ 保存完了", "saved");
+  }).catch(function(e){ showSync("エラー: "+e.message, "saving"); });
+}
+
+// ── レンダリング ──────────────────────────────────────────────────
+function scls(s){ return s==="可提交"?"s-submit":s==="完了"?"s-done":"s-check"; }
+var filtered = [];
+
+function render() {
+  var all = allRows(), q = curSearch.toLowerCase();
+  filtered = all.filter(function(r) {
+    var st=gSt(r), nt=gNt(r), mt=gMt(r);
+    if (q && r.company.toLowerCase().indexOf(q)<0 && r.person.toLowerCase().indexOf(q)<0) return false;
+    if (curFilter==="可提交") return st==="可提交";
+    if (curFilter==="待检查") return st==="待检查";
+    if (curFilter==="完了")   return st==="完了";
+    if (curFilter==="vpn")    return mt==="VPN";
+    if (curFilter==="远程")   return mt==="远程";
+    if (curFilter==="二次")   return nt.indexOf("二次")>=0;
+    return true;
+  });
+  var html = "";
+  for (var i=0; i<filtered.length; i++) {
+    var r=filtered[i], st=gSt(r), nt=gNt(r), mt=gMt(r);
+    var isDone=st==="完了", isSecond=nt.indexOf("二次")>=0;
+    var noteClean=nt.replace("二次申请","").replace("二次","").trim();
+    var mb = mt==="VPN"  ? "<span class=\"badge m-vpn\" onclick=\"cycleMethod("+i+")\">VPN</span>"
+           : mt==="远程" ? "<span class=\"badge m-remote\" onclick=\"cycleMethod("+i+")\">远程</span>"
+           :               "<span class=\"badge m-none\" onclick=\"cycleMethod("+i+")\">&mdash;</span>";
+    var ck=gCk(r.company), cnt=ck.items.filter(function(v){return v;}).length;
+    var cbCls=cnt===CHECK_ITEMS.length?"check-badge full":"check-badge";
+    var checkB="<span class=\""+cbCls+"\" onclick=\"openCheckModal("+i+")\"><span class=\"cb-num\">"+cnt+"</span><span class=\"cb-den\">/"+CHECK_ITEMS.length+"</span></span>";
+    var wakuB=ck.waku==="通常"?"<span class=\"waku-normal\" onclick=\"openCheckModal("+i+")\">通常</span>"
+             :ck.waku==="インボイス"?"<span class=\"waku-invoice\" onclick=\"openCheckModal("+i+")\">インボイス</span>"
+             :"<span class=\"waku-none\" onclick=\"openCheckModal("+i+")\">&mdash;</span>";
+    var noteHTML=(isSecond?"<span class=\"badge b-second\">二次</span>":"")
+               +(noteClean?"<span style=\"color:var(--muted);font-size:.7rem\">"+esc(noteClean)+"</span>":"")
+               +(!isSecond&&!noteClean?"<span style=\"color:#2e3450;font-size:.7rem\">— 追加</span>":"")
+               +"<span class=\"ehint\">✎</span>";
+    var del=r._extra?"<button class=\"del-btn\" onclick=\"delRow("+i+")\">&#x2715;</button>":"";
+    html+="<tr data-idx=\""+i+"\" style=\"opacity:"+(isDone?.4:1)+"\">"
+      +"<td class=\"rn\">"+("00"+(i+1)).slice(-3)+"</td>"
+      +"<td><span class=\"person-tag\">"+esc(r.person)+"</span></td>"
+      +"<td>"+esc(r.company)+"</td>"
+      +"<td><span class=\"badge "+scls(st)+"\" onclick=\"openPopup("+i+",this)\">"+esc(st)+"</span></td>"
+      +"<td>"+mb+"</td>"
+      +"<td>"+wakuB+"</td>"
+      +"<td>"+checkB+"</td>"
+      +"<td class=\"note-td\" onclick=\"openNote("+i+")\">"
+      +"<div class=\"note-view\">"+noteHTML+"</div>"
+      +"<input class=\"note-inp\" type=\"text\" value=\""+esc(nt)+"\" placeholder=\"備考を入力…\" onkeydown=\"noteKey(event,"+i+")\" onmousedown=\"event.stopPropagation()\">"
+      +"</td><td>"+del+"</td></tr>";
+  }
+  document.getElementById("tbody").innerHTML = html;
+  document.getElementById("count").textContent = "共 "+filtered.length+" 件";
+  updateStats();
+}
+
+function updateStats() {
+  var a=allRows();
+  document.getElementById("sn-submit").textContent=a.filter(function(r){return gSt(r)==="可提交";}).length;
+  document.getElementById("sn-check").textContent =a.filter(function(r){return gSt(r)==="待检查";}).length;
+  document.getElementById("sn-done").textContent  =a.filter(function(r){return gSt(r)==="完了";}).length;
+  document.getElementById("sn-vpn").textContent   =a.filter(function(r){return gMt(r)==="VPN";}).length;
+  document.getElementById("sn-remote").textContent=a.filter(function(r){return gMt(r)==="远程";}).length;
+  document.getElementById("sn-second").textContent=a.filter(function(r){return gNt(r).indexOf("二次")>=0;}).length;
+  document.getElementById("sn-total").textContent =a.length;
+}
+
+// ── ステータス ────────────────────────────────────────────────────
+function openPopup(idx, el) {
+  popupIdx=idx;
+  var rect=el.getBoundingClientRect(), p=document.getElementById("popup");
+  p.style.top=(rect.bottom+window.scrollY+4)+"px";
+  p.style.left=(rect.left+window.scrollX)+"px";
+  p.classList.add("show"); event.stopPropagation();
+}
+document.getElementById("popup").querySelectorAll(".pop-item").forEach(function(el) {
+  el.addEventListener("click", function(e) {
+    e.stopPropagation(); if(popupIdx===null) return;
+    var r=filtered[popupIdx];
+    if(!overrides[r.company]) overrides[r.company]={};
+    overrides[r.company].status = el.dataset.s;
+    render();
+    saveOverride(r.company, "status", el.dataset.s);
+    toast("「"+el.dataset.s+"」に更新しました");
+    document.getElementById("popup").classList.remove("show"); popupIdx=null;
+  });
+});
+document.addEventListener("click", function(){ document.getElementById("popup").classList.remove("show"); });
+
+// ── 方式 ──────────────────────────────────────────────────────────
+function cycleMethod(idx) {
+  var r=filtered[idx], cur=gMt(r);
+  var next=cur==="VPN"?"远程":cur==="远程"?"":"VPN";
+  if(!overrides[r.company]) overrides[r.company]={};
+  overrides[r.company].method=next;
+  render();
+  saveOverride(r.company,"method",next);
+  toast(next?next+"に変更":"方式をクリア");
+}
+
+// ── 備考 ──────────────────────────────────────────────────────────
+function openNote(idx) {
+  if(activeNoteIdx!==null&&activeNoteIdx!==idx) commitNote(activeNoteIdx);
+  activeNoteIdx=idx;
+  var row=document.querySelector("tr[data-idx=\""+idx+"\"]");
+  if(!row) return;
+  row.querySelector(".note-view").style.display="none";
+  var inp=row.querySelector(".note-inp");
+  inp.classList.add("active"); inp.focus(); inp.select();
+}
+function commitNote(idx) {
+  var row=document.querySelector("tr[data-idx=\""+idx+"\"]");
+  if(!row){activeNoteIdx=null;return;}
+  var inp=row.querySelector(".note-inp"), r=filtered[idx];
+  var newVal=inp.value.trim(), oldVal=gNt(r);
+  inp.classList.remove("active"); row.querySelector(".note-view").style.display="";
+  if(newVal!==oldVal){
+    if(!overrides[r.company]) overrides[r.company]={};
+    overrides[r.company].note=newVal;
+    render();
+    saveOverride(r.company,"note",newVal);
+    toast("備考を更新しました");
+  }
+  if(activeNoteIdx===idx) activeNoteIdx=null;
+}
+function noteKey(e,idx){
+  if(e.key==="Enter"){e.preventDefault();commitNote(idx);}
+  if(e.key==="Escape"){
+    var row=document.querySelector("tr[data-idx=\""+idx+"\"]");
+    if(row){row.querySelector(".note-inp").classList.remove("active");row.querySelector(".note-view").style.display="";}
+    activeNoteIdx=null;
+  }
+}
+document.addEventListener("mousedown",function(e){
+  if(activeNoteIdx===null)return;
+  var row=document.querySelector("tr[data-idx=\""+activeNoteIdx+"\"]");
+  if(row&&!row.querySelector(".note-td").contains(e.target)) commitNote(activeNoteIdx);
+});
+
+// ── 検査 ──────────────────────────────────────────────────────────
+function openCheckModal(idx){
+  checkTarget=filtered[idx].company;
+  var d=gCk(checkTarget);
+  document.getElementById("cm-title").textContent=checkTarget;
+  document.getElementById("waku-normal-btn").className ="waku-btn"+(d.waku==="通常"?" active-normal":"");
+  document.getElementById("waku-invoice-btn").className="waku-btn"+(d.waku==="インボイス"?" active-invoice":"");
+  renderCheckItems();
+  document.getElementById("check-overlay").classList.add("show");
+}
+function closeCheckModal(){document.getElementById("check-overlay").classList.remove("show");checkTarget=null;}
+document.getElementById("check-overlay").addEventListener("click",function(e){if(e.target===document.getElementById("check-overlay"))closeCheckModal();});
+function setWaku(waku){
+  if(!checkTarget)return;
+  var d=gCk(checkTarget);
+  d.waku=d.waku===waku?"":waku;
+  document.getElementById("waku-normal-btn").className ="waku-btn"+(d.waku==="通常"?" active-normal":"");
+  document.getElementById("waku-invoice-btn").className="waku-btn"+(d.waku==="インボイス"?" active-invoice":"");
+  saveCheck(checkTarget); render();
+}
+function renderCheckItems(){
+  if(!checkTarget)return;
+  var d=gCk(checkTarget);
+  var cnt=d.items.filter(function(v){return v;}).length;
+  document.getElementById("cm-sub").textContent=cnt+" / "+CHECK_ITEMS.length+" 完了";
+  var html="";
+  CHECK_ITEMS.forEach(function(label,i){
+    var done=d.items[i];
+    html+="<div class=\"check-item"+(done?" done":"")+"\" onclick=\"toggleCheck("+i+")\"><div class=\"ci-box\">"
+      +(done?"<svg width=\"11\" height=\"9\" viewBox=\"0 0 11 9\" fill=\"none\"><path d=\"M1 4L4 7.5L10 1\" stroke=\"white\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>":"")
+      +"</div><span class=\"ci-label\">"+label+"</span></div>";
+  });
+  document.getElementById("check-items-list").innerHTML=html;
+}
+function toggleCheck(i){
+  if(!checkTarget)return;
+  var d=gCk(checkTarget);
+  d.items[i]=!d.items[i];
+  saveCheck(checkTarget); renderCheckItems(); render();
+}
+
+// ── フィルター ────────────────────────────────────────────────────
+document.querySelectorAll(".fbtn").forEach(function(btn){
+  btn.addEventListener("click",function(){
+    document.querySelectorAll(".fbtn").forEach(function(b){b.classList.remove("active");});
+    btn.classList.add("active"); curFilter=btn.dataset.f; render();
+  });
+});
+document.getElementById("search").addEventListener("input",function(e){curSearch=e.target.value.trim();render();});
+
+// ── 削除 ──────────────────────────────────────────────────────────
+function delRow(idx){
+  var r=filtered[idx];
+  if(!r._extra){toast("元データは削除できません");return;}
+  var key=fbKey(r.company);
+  extrasRef.child(key).remove();
+  toast("削除しました");
+}
+
+// ── Modal ─────────────────────────────────────────────────────────
+function openModal(){document.getElementById("overlay").classList.add("show");}
+function closeModal(){
+  document.getElementById("overlay").classList.remove("show");
+  document.getElementById("paste-area").value="";
+  document.getElementById("bulk-input-area").style.display="";
+  document.getElementById("bulk-preview-area").style.display="none";
+  pendingParsed=null;
+  ["m-person","m-company","m-note"].forEach(function(id){document.getElementById(id).value="";});
+}
+document.getElementById("open-add").addEventListener("click",openModal);
+document.getElementById("overlay").addEventListener("click",function(e){if(e.target===document.getElementById("overlay"))closeModal();});
+document.querySelectorAll(".tab").forEach(function(tab){
+  tab.addEventListener("click",function(){
+    document.querySelectorAll(".tab").forEach(function(t){t.classList.remove("active");});
+    tab.classList.add("active");
+    var w=tab.dataset.tab;
+    document.getElementById("tab-bulk").style.display=w==="bulk"?"":"none";
+    document.getElementById("tab-manual").style.display=w==="manual"?"":"none";
+  });
+});
+
+function parseLine(line){
+  line=line.trim();if(!line)return null;
+  var method=/vpn/i.test(line)?"VPN":/远程/.test(line)?"远程":"";
+  var note=/二次/.test(line)?"二次申请":"";
+  var clean=line.replace(/二次申请|二次/g,"").replace(/vpn申请|vpn/gi,"").replace(/远程申请|远程/g,"").trim();
+  var parts=clean.split(/[\s　]+/);
+  if(parts.length<2)return null;
+  return{person:parts[0],company:parts.slice(1).join("").trim(),method:method,note:note,defaultStatus:"待检查"};
+}
+document.getElementById("bulk-parse").addEventListener("click",function(){
+  var existing={};allRows().forEach(function(r){existing[r.company]=true;});
+  var added=[],dupes=[],seen={};
+  document.getElementById("paste-area").value.split("\n").forEach(function(line){
+    var p=parseLine(line);if(!p||!p.company)return;
+    if(existing[p.company]||seen[p.company])dupes.push(p);
+    else{added.push(p);seen[p.company]=true;}
+  });
+  pendingParsed={added:added,dupes:dupes};
+  document.getElementById("preview-added").innerHTML=
+    "<div class=\"preview-label\" style=\"color:var(--green)\">✓ 追加予定 ("+added.length+"件)</div>"
+    +(added.length===0?"<div style=\"color:#3a4060;font-size:.74rem\">なし</div>":
+    "<div class=\"preview-box\">"+added.map(function(r){
+      return "<div class=\"preview-row\"><span style=\"color:var(--muted);min-width:50px\">"+esc(r.person)+"</span>"
+        +"<span style=\"flex:1\">"+esc(r.company)+"</span>"
+        +(r.method?"<span style=\"color:var(--blue);font-size:.66rem\">"+r.method+"</span>":"")
+        +(r.note?"<span style=\"color:var(--red);font-size:.66rem\">二次</span>":"")+"</div>";
+    }).join("")+"</div>");
+  document.getElementById("preview-dupes").innerHTML=dupes.length===0?"":
+    "<div class=\"preview-label\" style=\"color:var(--orange);margin-top:10px\">⚠ 重複スキップ ("+dupes.length+"件)</div>"
+    +"<div class=\"preview-box\">"+dupes.map(function(r){
+      return "<div class=\"preview-row\" style=\"opacity:.55\"><span style=\"color:var(--muted);min-width:50px\">"+esc(r.person)+"</span><span>"+esc(r.company)+"</span></div>";
+    }).join("")+"</div>";
+  var btn=document.getElementById("bulk-confirm");
+  btn.textContent=added.length+"件を追加する";btn.disabled=added.length===0;
+  document.getElementById("bulk-input-area").style.display="none";
+  document.getElementById("bulk-preview-area").style.display="";
+});
+document.getElementById("bulk-back").addEventListener("click",function(){
+  document.getElementById("bulk-input-area").style.display="";
+  document.getElementById("bulk-preview-area").style.display="none";
+});
+document.getElementById("bulk-cancel").addEventListener("click",closeModal);
+document.getElementById("bulk-confirm").addEventListener("click",function(){
+  if(!pendingParsed||!pendingParsed.added.length)return;
+  pendingParsed.added.forEach(function(r){
+    var key=fbKey(r.company);
+    extrasRef.child(key).set({person:r.person,company:r.company,method:r.method,note:r.note,defaultStatus:r.defaultStatus});
+  });
+  toast(pendingParsed.added.length+"件を追加しました");
+  closeModal();
+});
+document.getElementById("manual-cancel").addEventListener("click",closeModal);
+document.getElementById("manual-add").addEventListener("click",function(){
+  var person=document.getElementById("m-person").value.trim();
+  var company=document.getElementById("m-company").value.trim();
+  var method=document.getElementById("m-method").value;
+  var status=document.getElementById("m-status").value;
+  var note=document.getElementById("m-note").value.trim();
+  if(!person||!company){toast("⚠ 担当者と会社名は必須です");return;}
+  if(allRows().some(function(r){return r.company===company;})){toast("⚠ この会社はすでに登録されています");return;}
+  var key=fbKey(company);
+  extrasRef.child(key).set({person:person,company:company,method:method,note:note,defaultStatus:status});
+  toast("「"+company+"」を追加しました");
+  closeModal();
+});
+</script>
+</body>
+</html>
